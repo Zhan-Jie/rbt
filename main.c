@@ -62,11 +62,20 @@ node_t* insert_new_node(node_t* h, comparator cmp, void* key) {
     } else {
         h->key = key;
     }
-    if (is_red(h->right) && !is_red(h->left)) {
-        h = rotate_left(h);
-    }
-    if (is_red(h->left) && is_red(h->left->left)) {
-        h = rotate_right(h);
+    if (is_red(h->left)) {
+        if (is_red(h->left->right)) {
+            h->left = rotate_left(h->left);
+        }
+        if (is_red(h->left->left)) {
+            h = rotate_right(h);
+        }
+    } else if (is_red(h->right)) {
+        if (is_red(h->right->left)) {
+            h->right = rotate_right(h->right);
+        }
+        if (is_red(h->right->right)) {
+            h = rotate_left(h);
+        }
     }
     return h;
 }
@@ -76,8 +85,8 @@ void tree_insert(rbt_t* tree, void* key) {
     tree->root->color = BLACK;
 }
 
-int to_int(void* v) {
-    return *((int*)v);
+char to_char(void* v) {
+    return *((char *)v);
 }
 
 char* get_color(char c) {
@@ -89,32 +98,31 @@ void show_tree(node_t* h) {
         return;
     }
     if (h->color == RED) {
-        printf("%d [style=filled, fillcolor=%s]\n", to_int(h->key), get_color(h->color));
+        printf("%c [style=filled, fillcolor=%s]\n", to_char(h->key), get_color(h->color));
     } else {
-        printf("%d\n", to_int(h->key));
+        printf("%c\n", to_char(h->key));
     }
     if (h->left) {
-        printf("%d -- %d\n", to_int(h->key), to_int(h->left->key));
+        printf("%c -- %c\n", to_char(h->key), to_char(h->left->key));
     }
     if (h->right) {
-        printf("%d -- %d\n", to_int(h->key), to_int(h->right->key));
+        printf("%c -- %c\n", to_char(h->key), to_char(h->right->key));
     }
     show_tree(h->left);
     show_tree(h->right);
     free(h);
 }
 
-int cmp_int(void* a, void* b) {
-    return *((int*)a) - *((int*)b);
+int cmp_char(void* a, void* b) {
+    return *((char *)a) - *((char *)b);
 }
 
 int main() {
     rbt_t tree;
     tree.root = NULL;
-    tree.cmp = cmp_int;
-    int a[20];
-    for (int i = 0; i < 20; ++i) {
-        a[i] = 20-i;
+    tree.cmp = cmp_char;
+    char a[10] = {'E', 'A', 'S', 'Y', 'Q', 'U', 'T', 'I', 'O', 'N'};
+    for (int i = 0; i < 10; ++i) {
         tree_insert(&tree, a+i);
     }
     show_tree(tree.root);

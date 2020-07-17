@@ -126,20 +126,14 @@ node_t* find_parent_in_tree(node_t* root, comparator cmp, node_t* target) {
     return NULL;
 }
 
-node_t* delete_black_leaf(node_t* h, comparator cmp, node_t* target) {
-    node_t* parent = find_parent_in_tree(h, cmp, target);
-    if (parent == NULL) {
-        return h;
-    }
-    if (parent->left == target) {
+node_t* delete_black_leaf(node_t* h, comparator cmp, node_t* parent, int is_left) {
+    if (is_left) {
         node_t* sibling = parent->right;
 
         if (parent->color == RED) {
             // 父节点为红色，则直接父节点涂黑，右节点涂红
             parent->color = BLACK;
             sibling->color = RED;
-            free(parent->left);
-            parent->left = NULL;
             return h;
         }
 
@@ -149,33 +143,30 @@ node_t* delete_black_leaf(node_t* h, comparator cmp, node_t* target) {
             node_t* new_parent = rotate_left(parent);
             new_parent->left->color = BLACK;
             new_parent->left->right->color = RED;
-            free(new_parent->left->left);
-            new_parent->left->left = NULL;
             return parent == h ? new_parent : h;
         }
         // 右兄弟为黑色
-        if (sibling->right) {
+        if (is_red(sibling->right)) {
             // 右兄弟的右儿子红色
             node_t* new_parent = rotate_left(parent);
             new_parent->right->color = BLACK;
-            free(new_parent->left->left);
-            new_parent->left->left = NULL;
             return parent == h ? new_parent : h;
         } 
-        if (sibling->left) {
+        if (is_red(sibling->left)) {
             // 右兄弟的左儿子红色
             parent->right = rotate_right(parent->right);
             node_t* new_parent = rotate_left(parent);
             new_parent->right->color = BLACK;
-            free(new_parent->left->left);
-            new_parent->left->left = NULL;
             return parent == h ? new_parent : h;
         } 
         // 右兄弟黑色，无红色子节点
         sibling->color = RED;
-        free(parent->left);
-        parent->left = NULL;
-        return delete_black_leaf(h, cmp, parent);
+        // 递归向上时，仅仅平衡高度，不能删除节点
+        node_t* new_parent = find_parent_in_tree(h, cmp, parent);
+        if (new_parent == NULL) {
+            return h;
+        }
+        return delete_black_leaf(h, cmp, new_parent, new_parent->left == parent);
     } else {
         
         node_t* sibling = parent->left;
@@ -184,8 +175,6 @@ node_t* delete_black_leaf(node_t* h, comparator cmp, node_t* target) {
             // 父节点为红色，则直接父节点涂黑，左节点涂红
             parent->color = BLACK;
             sibling->color = RED;
-            free(parent->right);
-            parent->right = NULL;
             return h;
         }
 
@@ -193,31 +182,28 @@ node_t* delete_black_leaf(node_t* h, comparator cmp, node_t* target) {
             node_t* new_parent = rotate_right(parent);
             new_parent->right->color = BLACK;
             new_parent->right->left->color = RED;
-            free(new_parent->right->right);
-            new_parent->right->right = NULL;
             return parent == h ? new_parent : h;
         }
 
-        if (sibling->left) {
+        if (is_red(sibling->left)) {
             node_t* new_parent = rotate_right(parent);
             new_parent->left->color = BLACK;
-            free(new_parent->right->right);
-            new_parent->right->right = NULL;
             return parent == h ? new_parent : h;
         }
 
-        if (sibling->right) {
+        if (is_red(sibling->right)) {
             parent->left = rotate_left(parent->left);
             node_t* new_parent = rotate_right(parent);
             new_parent->left->color = BLACK;
-            free(new_parent->right->right);
-            new_parent->right->right = NULL;
             return parent == h ? new_parent : h;
         }
         sibling->color = RED;
-        free(parent->right);
-        parent->right = NULL;
-        return delete_black_leaf(h, cmp, parent);
+        // 递归向上时，仅仅平衡高度，不能删除节点
+        node_t* new_parent = find_parent_in_tree(h, cmp, parent);
+        if (new_parent == NULL) {
+            return h;
+        }
+        return delete_black_leaf(h, cmp, new_parent, new_parent->left == parent);
     }
 }
 
@@ -255,8 +241,19 @@ node_t* delete_node(node_t* h, comparator cmp, void* key) {
                 return h;
             }
             void* successorKey = successor->key;
+            node_t* new_parent = find_parent_in_tree(h, cmp, successor);
+            if (new_parent == NULL) {
+                return h;
+            }
+            int is_left = (new_parent->left == successor);
+            free(successor);
+            if (is_left) {
+                new_parent->left = NULL;
+            } else {
+                new_parent->right = NULL;
+            }
             // successor为黑节点，并且两子为null
-            h = delete_black_leaf(h, cmp, successor);
+            h = delete_black_leaf(h, cmp, new_parent, is_left);
             target->key = successorKey;
             return h;
         } else {
@@ -288,11 +285,20 @@ node_t* delete_node(node_t* h, comparator cmp, void* key) {
             return h;
         } 
         // target为黑节点，两子为null
-        if (target == h) {
-            free(h);
+        node_t* new_parent = find_parent_in_tree(h, cmp, target);
+        if (new_parent == NULL) {
+            free(target);
             return NULL;
         }
-        return delete_black_leaf(h, cmp, target);
+        int is_left = (new_parent->left == target);
+        free(target);
+        if (is_left) {
+            new_parent->left = NULL;
+        } else {
+            new_parent->right = NULL;
+        }
+
+        return delete_black_leaf(h, cmp, new_parent, is_left);
     }
 }
 
@@ -341,22 +347,19 @@ int main() {
     rbt_t tree;
     tree.root = NULL;
     tree.cmp = cmp_char;
-    char a[10] = {'E', 'A', 'S', 'Y', 'Q', 'U', 'T', 'I', 'O', 'N'};
-    for (int i = 0; i < 10; ++i) {
+    char a[9] = {'1', '2', '3', '4', '5', '6', '7', '8', '9'};
+    for (int i = 0; i < 9; ++i) {
         tree_insert(&tree, a+i);
     }
     
-    tree_delete(&tree, a);
-    tree_delete(&tree, a+9);
+    tree_delete(&tree, a+1);
     tree_delete(&tree, a+5);
-    tree_delete(&tree, a+2);
-    tree_delete(&tree, a+6);
-    tree_delete(&tree, a+4);
     tree_delete(&tree, a+3);
     tree_delete(&tree, a+7);
+    tree_delete(&tree, a+4);
     tree_delete(&tree, a+8);
-    tree_delete(&tree, a+1);
-    tree_delete(&tree, a+1);
+    tree_delete(&tree, a+2);
+    tree_delete(&tree, a+6);
     show_tree(tree.root);
     return 0;
 }

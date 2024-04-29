@@ -54,9 +54,6 @@ int main() {
     rbt_remove(&tree, a+2);
     rbt_remove(&tree, a+6);
     rbt_remove(&tree, a+5);
-    rbt_remove(&tree, a);
-    rbt_remove(&tree, a+7);
-    rbt_remove(&tree, a+8);
     show_tree(&tree);
     rbt_destory(&tree);
     return 0;

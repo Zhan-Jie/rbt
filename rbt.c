@@ -108,139 +108,166 @@ static node_t* find_parent_in_tree(node_t* root, comparator cmp, node_t* target)
     return NULL;
 }
 
-static node_t* delete_black_leaf(node_t* h, comparator cmp, node_t* parent, int is_left) {
+static color_t get_color(node_t* node) {
+    return node == NULL ? BLACK : node->color;
+}
+
+static node_t* rebalance(node_t* h, comparator cmp, node_t* parent, int is_left) {
+    if (parent == NULL) {
+        return h;
+    }
     if (is_left) {
         node_t* sibling = parent->right;
+        node_t* sl = sibling->left;
+        node_t* sr = sibling->right;
 
-        if (parent->color == RED) {
-            // 父节点为红色，则直接父节点涂黑，右节点涂红
-            parent->color = BLACK;
-            sibling->color = RED;
-            return h;
-        }
-
-        node_t* grandparent = find_parent_in_tree(h, cmp, parent);
-        if (sibling->color == RED) {
-            // 右兄弟为红色，则右兄弟两子为黑节点
-            // P节点左旋，导致P节点涂红，S节点变成新的父节点
-            node_t* new_parent = rotate_left(parent);
-            new_parent->left->color = BLACK;
-            new_parent->left->right->color = RED;
-            if (grandparent) {
-                if (grandparent->left == parent) {
-                    grandparent->left = new_parent;
+        if (get_color(sibling) == RED) {
+            // 兄弟节点为红色，通过左旋，转化为兄弟节点为黑色的场景
+            node_t* gp = find_parent_in_tree(h, cmp, parent);
+            if (gp != NULL) {
+                if (gp -> left == parent) {
+                    gp -> left = sibling;
                 } else {
-                    grandparent->right = new_parent;
+                    gp -> right = sibling;
                 }
-                return h;
-            } else {
-                return new_parent;
+            } 
+            parent -> right = sl;
+            sibling -> left = parent;
+
+            sibling -> color = BLACK;
+            parent -> color = RED;
+
+            if (gp == NULL) {
+                h = sibling;
             }
+
+            sibling = sl;
+            sl = sibling -> left;
+            sr = sibling -> right;
         }
-        // 右兄弟为黑色
-        if (is_red(sibling->right)) {
-            // 右兄弟的右儿子红色
-            node_t* new_parent = rotate_left(parent);
-            new_parent->right->color = BLACK;
-            if (grandparent) {
-                if (grandparent->left == parent) {
-                    grandparent->left = new_parent;
-                } else {
-                    grandparent->right = new_parent;
-                }
-                return h;
+        
+        // 兄弟是黑色的
+        if (get_color(sl) == BLACK && get_color(sr) == BLACK) {
+            // 两兄弟子节点黑色
+            if (get_color(parent) == BLACK) {
+                // 父节点是黑色的
+                sibling->color = RED;
+                node_t* gp = find_parent_in_tree(h, cmp, parent);
+                return rebalance(h, cmp, gp, gp != NULL && gp -> left == parent);
             } else {
-                return new_parent;
+                // 父节点是红色的
+                parent->color = BLACK;
+                sibling->color = RED;
+                return h;
             }
         } 
-        if (is_red(sibling->left)) {
-            // 右兄弟的左儿子红色
-            parent->right = rotate_right(parent->right);
-            node_t* new_parent = rotate_left(parent);
-            new_parent->right->color = BLACK;
-            if (grandparent) {
-                if (grandparent->left == parent) {
-                    grandparent->left = new_parent;
-                } else {
-                    grandparent->right = new_parent;
-                }
-                return h;
+        if (get_color(sr) == BLACK) {
+            // 兄弟右子为黑色，通过右旋，转化为兄弟右子为红色的情况
+            parent -> right = sl;
+            node_t* slr = sl -> right;
+            sl-> right = sibling;
+            sibling -> left = slr;
+            sibling -> color = RED;
+            sl -> color = BLACK;
+
+            sibling = sl;
+            sl = sibling -> left;
+            sr = sibling -> right;
+        }
+        // 兄弟右子节点为红色
+        node_t* gp = find_parent_in_tree(h, cmp, parent);
+        if (gp != NULL) {
+            if (gp -> left == parent) {
+                gp -> left = sibling;
             } else {
-                return new_parent;
+                gp -> right = sibling;
             }
         } 
-        // 右兄弟黑色，无红色子节点
-        sibling->color = RED;
-        // 递归向上时，仅仅平衡高度，不能删除节点
-        if (grandparent == NULL) {
-            return h;
-        }
-        return delete_black_leaf(h, cmp, grandparent, grandparent->left == parent);
+        color_t parent_color = get_color(parent);
+        parent -> right = sl;
+        sibling -> left = parent;
+        sibling -> color = parent_color;
+        parent -> color = BLACK;
+        sr -> color = BLACK;
+        return gp != NULL ? h : sibling;
     } else {
-        
         node_t* sibling = parent->left;
+        node_t* sl = sibling -> left;
+        node_t* sr = sibling -> right;
+
+        // 兄弟节点为红色
+        if (get_color(sibling) == RED) {
+            // 通过右旋，转化为兄弟节点为黑色的情况
+            node_t* gp = find_parent_in_tree(h, cmp, parent);
+            if (gp != NULL) {
+                if (gp -> left == parent) {
+                    gp -> left = sibling;
+                } else {
+                    gp -> right = sibling;
+                }
+            }
+
+            sibling -> right = parent;
+            parent -> left = sr;
+
+            sibling -> color = BLACK;
+            parent -> color = RED;
+
+            if (gp == NULL) {
+                h = sibling;
+            }
+
+            sibling = sr;
+            sl = sibling -> left;
+            sr = sibling -> right;
+        }
+
+        // 兄弟节点是黑色的
+        if (get_color(sl) == BLACK && get_color(sr) == BLACK) {
+            // 兄弟的两子节点为黑色
+            if (get_color(parent) == BLACK) {
+                // 父节点是黑色的
+                sibling -> color = RED;
+                node_t* gp = find_parent_in_tree(h, cmp, parent);
+                return rebalance(h, cmp, gp, gp != NULL && gp -> left == parent);
+            } else {
+                parent -> color = BLACK;
+                sibling -> color = RED;
+                return h;
+            }
+        }
         
-        if (parent->color == RED) {
-            // 父节点为红色，则直接父节点涂黑，左节点涂红
-            parent->color = BLACK;
-            sibling->color = RED;
-            return h;
+        if (get_color(sl) == BLACK) {
+            // 兄弟左子节点为黑色的情况，通过左旋，转化为兄弟左子节点为红色的情况
+            parent -> left = sr;
+            node_t* srl = sr -> left;
+            sr -> left = sibling;
+            sibling -> right = srl;
+            sibling -> color = RED;
+            sr -> color = BLACK;
+
+            sibling = sr;
+            sl = sibling -> left;
+            sr = sibling -> right;
         }
 
-        node_t* grandparent = find_parent_in_tree(h, cmp, parent);
-
-        if (sibling->color == RED) {
-            node_t* new_parent = rotate_right(parent);
-            new_parent->right->color = BLACK;
-            new_parent->right->left->color = RED;
-            if (grandparent) {
-                if (grandparent->left == parent) {
-                    grandparent->left = new_parent;
-                } else {
-                    grandparent->right = new_parent;
-                }
-                return h;
+        // 兄弟的左子节点，为红色
+        node_t* gp = find_parent_in_tree(h, cmp, parent);
+        if (gp != NULL) {
+            if (gp -> left == parent) {
+                gp -> left = sibling;
             } else {
-                return new_parent;
+                gp -> right = sibling;
             }
         }
+        color_t parent_color = get_color(parent);
+        parent -> left = sr;
+        sibling -> right = parent;
+        sl -> color = BLACK;
+        parent -> color = BLACK;
+        sibling -> color = parent_color;
 
-        if (is_red(sibling->left)) {
-            node_t* new_parent = rotate_right(parent);
-            new_parent->left->color = BLACK;
-            if (grandparent) {
-                if (grandparent->left == parent) {
-                    grandparent->left = new_parent;
-                } else {
-                    grandparent->right = new_parent;
-                }
-                return h;
-            } else {
-                return new_parent;
-            }
-        }
-
-        if (is_red(sibling->right)) {
-            parent->left = rotate_left(parent->left);
-            node_t* new_parent = rotate_right(parent);
-            new_parent->left->color = BLACK;
-            if (grandparent) {
-                if (grandparent->left == parent) {
-                    grandparent->left = new_parent;
-                } else {
-                    grandparent->right = new_parent;
-                }
-                return h;
-            } else {
-                return new_parent;
-            }
-        }
-        sibling->color = RED;
-        // 递归向上时，仅仅平衡高度，不能删除节点
-        if (grandparent == NULL) {
-            return h;
-        }
-        return delete_black_leaf(h, cmp, grandparent, grandparent->left == parent);
+        return gp != NULL ? h : sibling;
     }
 }
 
@@ -255,8 +282,8 @@ static node_t* delete_node(node_t* h, comparator cmp, void* key) {
         if (target->right) {
             // 左右均不为空，则找到直接后继节点（叶子节点）
             successor = find_successor(target);
-            if (successor->right) {
-                // successor左null右红.
+            if (successor->right != NULL) {
+                // successor左null，右边不为空，则必定是红色节点. 直接删除即可
                 target->key = successor->key;
                 successor->key = successor->right->key;
                 free(successor->right);
@@ -277,22 +304,19 @@ static node_t* delete_node(node_t* h, comparator cmp, void* key) {
                 }
                 return h;
             }
+            // successor为黑节点，且无子节点
             void* successorKey = successor->key;
             node_t* new_parent = find_parent_in_tree(h, cmp, successor);
-            if (new_parent == NULL) {
-                return h;
-            }
             int is_left = (new_parent->left == successor);
             free(successor);
+            target->key = successorKey;
             if (is_left) {
                 new_parent->left = NULL;
             } else {
                 new_parent->right = NULL;
             }
             // successor为黑节点，并且两子为null
-            h = delete_black_leaf(h, cmp, new_parent, is_left);
-            target->key = successorKey;
-            return h;
+            return rebalance(h, cmp, new_parent, is_left);
         } else {
             // target左红右null
             target->key = target->left->key;
@@ -335,7 +359,7 @@ static node_t* delete_node(node_t* h, comparator cmp, void* key) {
             new_parent->right = NULL;
         }
 
-        return delete_black_leaf(h, cmp, new_parent, is_left);
+        return rebalance(h, cmp, new_parent, is_left);
     }
 }
 
